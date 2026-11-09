@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sen-romanizer"
+version = "0.1.0"
+description = "Lightweight lyrics romanizer: Japanese (kanji/kana), Chinese, Korean, Cyrillic and Greek, no dependencies"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "RainySen" }]
+requires-python = ">=3.10"
+keywords = ["romanize", "romaji", "pinyin", "hangul", "transliteration", "lyrics"]
+
+[project.urls]
+Homepage = "https://github.com/RainySen/sen-romanizer"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sen_romanizer = ["dict.sqlite"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
