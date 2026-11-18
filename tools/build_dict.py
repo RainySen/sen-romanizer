@@ -8,9 +8,13 @@ from contextlib import closing
 import xml.etree.ElementTree as ET
 from typing import IO
 
-JMDICT_URL = "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz"
+JMDICT_URL = "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz"
 CEDICT_URL = "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz"
 DEFAULT_OUT = os.path.join(os.path.dirname(__file__), "..", "src", "sen_romanizer", "dict.sqlite")
+# limits against a tampered or broken download: real sources are ~11 MB compressed, ~60 MB of text
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+MAX_SOURCE_CHARS = 300 * 1024 * 1024
+DOWNLOAD_TIMEOUT_S = 60
 
 COMMON_TAGS = {"news1", "ichi1", "spec1", "spec2", "gai1"}
 SUFFIX_POS = {"n-suf", "suf", "ctr", "pref"}
@@ -27,7 +31,9 @@ LYRICS_READINGS = {
     "手": "て", "胸": "むね", "側": "そば", "今": "いま", "日": "ひ", "月": "つき", "色": "いろ", "中": "なか",
     "上": "うえ", "下": "した", "前": "まえ", "後": "あと", "道": "みち", "海": "うみ", "一人": "ひとり",
     "二人": "ふたり", "何": "なに", "誰": "だれ", "僕ら": "ぼくら", "私達": "わたしたち", "瞳": "ひとみ", "未来": "みらい", "床": "ゆか",
+    "七": "なな", "良い": "いい", "戯言": "ざれごと",
 }
+PHRASE_PARTICLES = {"が", "を", "の", "に", "は", "へ", "と", "で", "も"}
 # keep entity names: expat would expand &v5k; into its english description
 ENTITY = re.compile(r"&([\w-]+);")
 XML_ENTITIES = {"amp", "lt", "gt", "quot", "apos"}
@@ -52,13 +58,19 @@ def _texts(element, tag: str) -> set[str]:
 
 
 def _is_phrase(keb: str) -> bool:
-    # kana between kanji means a set phrase (花が咲く); its particles must stay separate
-    seen_kana = False
+    # kana ending in a particle between kanji means a set phrase (花が咲く, 胸ぐらを掴む) whose particles
+    # must stay separate; okurigana (在り方, 思い出) and leading prefixes (お家) belong to the word.
+    # を is never inside a word: any entry with it is an expression (恋をする)
+    if "を" in keb:
+        return True
+    seen_han, between = False, ""
     for ch in keb:
         if "\u3040" <= ch <= "\u30ff":
-            seen_kana = True
-        elif seen_kana and _has_han(ch):
-            return True
+            between += ch if seen_han else ""
+        elif _has_han(ch):
+            if between and between[-1] in PHRASE_PARTICLES:
+                return True
+            seen_han, between = True, ""
     return False
 
 
@@ -78,7 +90,10 @@ def _stem(keb: str, reading: str, pos: set[str]) -> tuple[str, str, str] | None:
 
 
 def _jmdict(source: IO[str]) -> tuple[dict[str, tuple[str, int]], dict[tuple[str, str], tuple[str, int]]]:
-    text = ENTITY.sub(lambda m: m.group(0) if m.group(1) in XML_ENTITIES else m.group(1), source.read())
+    raw = source.read(MAX_SOURCE_CHARS + 1)
+    if len(raw) > MAX_SOURCE_CHARS:
+        raise ValueError("JMdict source is larger than expected; refusing to parse it")
+    text = ENTITY.sub(lambda m: m.group(0) if m.group(1) in XML_ENTITIES else m.group(1), raw)
     text = re.sub(r"<!DOCTYPE.*?\]>", "", text, flags=re.S)
     words: dict[str, tuple[tuple[int, int, int], str]] = {}
     stems: dict[tuple[str, str], tuple[tuple[int, int, int], str]] = {}
@@ -182,10 +197,24 @@ def build(jmdict: IO[str], cedict: IO[str], out_path: str) -> dict[str, int]:
 
 
 def _download(url: str, cache_dir: str) -> str:
+    # plain http lets anyone on the network rewrite the dictionary
+    if not url.startswith("https://"):
+        raise ValueError(f"refusing non-https download: {url}")
     os.makedirs(cache_dir, exist_ok=True)
     path = os.path.join(cache_dir, os.path.basename(url))
-    if not os.path.exists(path):
-        urllib.request.urlretrieve(url, path)
+    if os.path.exists(path):
+        return path
+    tmp_path = path + ".part"
+    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response, open(tmp_path, "wb") as out:
+        total = 0
+        while chunk := response.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_DOWNLOAD_BYTES:
+                out.close()
+                os.remove(tmp_path)
+                raise ValueError(f"download larger than {MAX_DOWNLOAD_BYTES} bytes: {url}")
+            out.write(chunk)
+    os.replace(tmp_path, path)
     return path
 
 

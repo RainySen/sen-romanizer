@@ -39,6 +39,21 @@ def romanizer(tmp_path_factory):
     ("咲いたね", "saita ne"),
     ("僕らはまだ", "bokura wa mada"),
     ("東京の街で", "東京 no machi de"),
+    ("お家へ", "ouchi e"),
+    ("君の在り方", "kimi no arikata"),
+    ("在りし日", "arishi 日"),
+    ("良い", "ii"),
+    ("良かった", "yokatta"),
+    # は closing a kana run is the topic particle
+    ("君のは", "kimi no wa"),
+    ("名前には", "namae ni wa"),
+    ("それは", "sore wa"),
+    ("こんにちは", "konnichi wa"),
+    ("はな", "hana"),
+    # を is only ever a particle; へ closing a run too
+    ("それをみる", "sore wo miru"),
+    ("恋をして", "koi wo shite"),
+    ("君のもとへ", "kimi no moto e"),
 ])
 def test_japanese_lines(romanizer, text, expected):
     assert romanizer.romanize(text) == expected
@@ -94,3 +109,10 @@ def test_detect_language_uses_the_whole_lyrics():
     assert detect_language(["寝床", "君の名前"]) == "ja"
     assert detect_language(["我爱你", "你好"]) == "zh"
     assert detect_language(["Hello", "사랑해"]) is None
+
+
+def test_absurdly_long_lines_are_skipped_fast(romanizer):
+    import time
+    start = time.perf_counter()
+    assert romanizer.romanize("鬱" * 20000, lang="ja") == ""
+    assert time.perf_counter() - start < 0.5

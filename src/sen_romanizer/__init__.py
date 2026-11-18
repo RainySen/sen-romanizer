@@ -9,6 +9,8 @@ from sen_romanizer.kana import is_kana, kana_to_romaji
 __all__ = ["Romanizer", "detect_language", "romanize"]
 
 DICT_PATH = os.path.join(os.path.dirname(__file__), "dict.sqlite")
+# lyrics come from the network: a giant line would hold the caller for seconds (20k chars ~4.5 s)
+MAX_LINE_CHARS = 500
 # particles read differently from their kana when they stand alone
 PARTICLES = {"は": "wa", "へ": "e", "を": "wo"}
 # a kana run after a noun starting with one of these opens with a particle: 僕ら|は|まだ
@@ -22,6 +24,8 @@ FOLLOWERS = {
     "ぬ": set("なにぬねのん"), "ぶ": set("ばびぶべぼん"), "む": set("まみむめもん"), "る": set("らりるれろっ"),
     "う": set("わいうえおっ"),
 }
+# honorific prefixes the dictionary stores with their word: お家 ouchi, ご飯 gohan
+HONORIFICS = set("おご")
 PUNCTUATION = {"、": ",", "。": ".", "！": "!", "？": "?", "「": '"', "」": '"', "『": '"', "』": '"', "・": " ",
                "，": ",", "：": ":", "；": ";", "（": "(", "）": ")"}
 
@@ -53,7 +57,7 @@ class Romanizer:
         self._dictionary = Dictionary(dict_path)
 
     def romanize(self, text: str, lang: str | None = None) -> str:
-        if not any(_handled(ch) for ch in text):
+        if len(text) > MAX_LINE_CHARS or not any(_handled(ch) for ch in text):
             return ""
         lang = lang or detect_language([text]) or "zh"
         line = self._join(self._tokens(text, lang))
@@ -65,7 +69,12 @@ class Romanizer:
         i = 0
         while i < len(text):
             ch = text[i]
-            if is_han(ch):
+            prefixed = self._prefixed(text, i, lang)
+            if prefixed:
+                size, reading, _common = prefixed
+                tokens.append((kana_to_romaji(reading), "word"))
+                attach_next, i = False, i + size
+            elif is_han(ch):
                 hit, attach_next = self._kanji(text, i, lang)
                 if hit:
                     size, roman = hit
@@ -80,9 +89,15 @@ class Romanizer:
             elif is_kana(ch):
                 katakana = _is_katakana(ch)
                 end = i + 1
-                while end < len(text) and is_kana(text[end]) and _is_katakana(text[end]) == katakana:
+                # を is never part of a word: it always stands alone
+                while (ch != "を" and end < len(text) and is_kana(text[end]) and text[end] != "を"
+                       and _is_katakana(text[end]) == katakana and not self._prefixed(text, end, lang)):
                     end += 1
                 run = text[i:end]
+                # は/へ closing a hiragana run are particles (のは, には, それは, こんにちは, もとへ)
+                closing = PARTICLES.get(run[-1]) if not katakana and len(run) > 1 and run[-1] in "はへ" else None
+                if closing:
+                    run = run[:-1]
                 if attach_next:
                     # okurigana after a verb/adjective stem: 咲 + いた -> saita
                     tail = run[-1] if len(run) > 1 and run[-1] in FINAL_PARTICLES else ""
@@ -94,6 +109,8 @@ class Romanizer:
                     tokens.append((kana_to_romaji(run[1:]), "word"))
                 else:
                     tokens.append((PARTICLES.get(run) or kana_to_romaji(run), "word"))
+                if closing:
+                    tokens.append((closing, "word"))
                 attach_next, i = False, end
             elif ch.isspace():
                 tokens.append((" ", "space"))
@@ -109,12 +126,18 @@ class Romanizer:
                 attach_next, i = False, end
         return tokens
 
+    def _prefixed(self, text: str, start: int, lang: str) -> tuple[int, str, bool] | None:
+        if lang != "ja" or text[start] not in HONORIFICS or not is_han(text[start + 1:start + 2] or "a"):
+            return None
+        return self._dictionary.longest(lang, text, start)
+
     # (size, roman) of the kanji word at start, and whether following okurigana glues to it
     def _kanji(self, text: str, start: int, lang: str) -> tuple[tuple[int, str] | None, bool]:
         word = self._dictionary.longest(lang, text, start)
         if lang == "ja":
             for size, reading, kind in self._dictionary.stems(lang, text, start):
-                if word is not None and size < word[0] and word[2]:
+                # a word reaching past the okurigana into more kanji (在り方) beats the bare verb
+                if word is not None and size < word[0] and (word[2] or word[0] > size + 1):
                     break
                 if self._okurigana_follows(text, start + size, kind):
                     return (size, kana_to_romaji(reading)), True
