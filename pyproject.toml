@@ -9,7 +9,7 @@ description = "Lightweight lyrics romanizer: Japanese (kanji/kana), Chinese, Kor
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "RainySen" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["romanize", "romaji", "pinyin", "hangul", "transliteration", "lyrics"]
 
 [project.urls]
