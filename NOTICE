@@ -1,0 +1,22 @@
+sen-romanizer
+Copyright (c) RainySen
+
+The source code is licensed under the MIT License (see LICENSE).
+
+The bundled dictionary file (sen_romanizer/dict.sqlite) is derived from the following
+works and is distributed under the Creative Commons Attribution-ShareAlike 4.0
+International License (CC BY-SA 4.0): https://creativecommons.org/licenses/by-sa/4.0/
+
+JMdict
+  This package uses the JMdict/EDICT dictionary files. These files are the property of
+  the Electronic Dictionary Research and Development Group, and are used in conformance
+  with the Group's licence.
+  https://www.edrdg.org/jmdict/j_jmdict.html
+  https://www.edrdg.org/edrdg/licence.html
+
+CC-CEDICT
+  CC-CEDICT is (c) MDBG and contributors, licensed under CC BY-SA 4.0.
+  https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+
+Changes: entries were filtered (rare and search-only spellings, set phrases) and
+reduced to readings (kana for Japanese, tone-marked pinyin for Chinese) stored in SQLite.
