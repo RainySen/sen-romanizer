@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +7,31 @@ name = "sen-romanizer"
 version = "0.1.0"
 description = "Lightweight lyrics romanizer: Japanese (kanji/kana), Chinese, Korean, Cyrillic and Greek, no dependencies"
 readme = "README.md"
-license = "MIT"
+# code is MIT; the bundled dictionary derives from JMdict and CC-CEDICT (CC BY-SA 4.0), see NOTICE
+license = "MIT AND CC-BY-SA-4.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "RainySen" }]
 requires-python = ">=3.11"
 keywords = ["romanize", "romaji", "pinyin", "hangul", "transliteration", "lyrics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: Japanese",
+    "Natural Language :: Chinese (Simplified)",
+    "Natural Language :: Chinese (Traditional)",
+    "Natural Language :: Korean",
+    "Natural Language :: Russian",
+    "Natural Language :: Greek",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Text Processing :: Linguistic",
+]
 
 [project.urls]
 Homepage = "https://github.com/RainySen/sen-romanizer"
+Repository = "https://github.com/RainySen/sen-romanizer"
+Issues = "https://github.com/RainySen/sen-romanizer/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
